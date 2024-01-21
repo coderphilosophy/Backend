@@ -1,11 +1,13 @@
 const asyncHandler = (requestHandler) => {
-    (req, res, next) => {
-        Promise.resolve(requestHandler(req, res, next)).catch((err) => next(err))
+    return (req, res, next) => {
+        Promise
+            .resolve(requestHandler(req, res, next))
+            .catch((err) => next(err))
     }
 }
  
 export {asyncHandler}
-
+ 
 //higher order function -> passing a function as a parameter.
 
 //THIS IS THE TRY CATCH VERSION

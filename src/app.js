@@ -19,10 +19,18 @@ app.use(express.static("public")) //for files like images, favicons icons etc.
 
 app.use(cookieParser())
 
+
+//ROUTES IMPORT
+import userRouter from './routes/user.routes.js'
+
+//routes declaration
+app.use("/api/v1/users", userRouter)
+
 export {app}
 
 /*
 NOTES
+COOKIES: they are the information that a website stores about a user when they visit a site, so that when they visit again their preferences are saved.
 
 USE OF COOKIE PARSER: to be able to set and get the cookies from the user's browser from the server.
 (main mere server se user ke browser ki cookies access bhi kar pau aur set bhi kar pau)

@@ -1,6 +1,6 @@
 //require('dotenv').config({path: './env'})     commonJS method
 import dotenv from 'dotenv'
-
+import {app} from './app.js'
 import connectDB from './db/index.js'
 
 dotenv.config({
