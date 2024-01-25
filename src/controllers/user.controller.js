@@ -160,6 +160,7 @@ const loginUser = asyncHandler( async (req, res) => {
 const logoutUser = asyncHandler( async(req, res) => {
     //We do not have a username or userid through which we can access the user in the database to log it out. So we created our own middleware to access the user in the database.
     User.findByIdAndUpdate(
+        //this is the user object that was added in the req object through the middleware auth.middleware.js
         req.user._id,
         {
             //updates the given fields
@@ -195,7 +196,7 @@ const refreshAccessToken = asyncHandler( async(req, res) => {
     //handling for web browser and mobile apps
     const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken
 
-    if(incomingRefreshToken){
+    if(!incomingRefreshToken){
         throw new ApiError(401, "Unauthorized request")
     }
 
