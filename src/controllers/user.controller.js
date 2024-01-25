@@ -3,6 +3,28 @@ import {ApiError} from '../utils/ApiError.js'
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { User } from "../models/user.models.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import jwt, { decode } from "jsonwebtoken";
+
+const generateAccessAndRefreshTokens = async (userID) => {
+    try {
+        const user = await User.findById(userID)
+        const accessToken = user.generateAccessToken()
+        const refreshToken = user.generateRefreshToken()
+
+        //add refresh token in DB
+        user.refreshToken = refreshToken
+        //save it in DB
+        //if we saved without any parameters then the mongoose schema that we built would come into action. It would check to ensure that all fields are valid and conform to the specific rules. We do not want that so we use validateBeforeSave which would directly push the data to the database without the mongoose model kicking in.
+        await user.save({ validateBeforeSave: false })
+
+        return {
+            accessToken,
+            refreshToken
+        }
+    } catch (error) {
+        throw new ApiError(500, "Something went wrong while generating access and refresh tokens")
+    }
+}
 
 const registerUser = asyncHandler( async (req, res) => {
     //get user details from frontend
@@ -80,7 +102,149 @@ const registerUser = asyncHandler( async (req, res) => {
     )
 })
 
-export {registerUser}
+const loginUser = asyncHandler( async (req, res) => {
+    //take data from req body
+    //login based on username or email
+    //find user in database
+    //if user found password check
+    //if password is correct -> generate access and refresh tokens.
+    //send cookie
+
+    const {email, username, password} = req.body
+
+    if(!username && !email){
+        throw new ApiError(400, "username or email is required!")
+    }
+
+    const user = await User.findOne({
+        $or: [{username}, {email}]
+    })
+
+    if(!user){
+        throw new ApiError(404, "User does not exist")
+    }
+
+    //NOTE:- the custom methods that we created can be accessed by the instance of the database. (here user)
+    const isPasswordValid = await user.isPasswordCorrect(password)
+
+    if(!isPasswordValid){
+        throw new ApiError(401, "Invalid user credentials!")
+    }
+
+    const {accessToken, refreshToken} = await generateAccessAndRefreshTokens(user._id )
+    //console.log(refreshToken)
+
+    const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
+
+    const options = {
+        //the below options make it only server modifiable, the frontend can only see the cookies and not modify them. This enhances security.
+        httpOnly: true,
+        secure: true
+    }
+
+    return res
+        .status(200)
+        .cookie("accessToken", accessToken, options)
+        .cookie("refreshToken", refreshToken, options)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    user: loggedInUser, accessToken, refreshToken
+                },
+                "User logged in successfully"
+            )
+        )
+})
+
+const logoutUser = asyncHandler( async(req, res) => {
+    //We do not have a username or userid through which we can access the user in the database to log it out. So we created our own middleware to access the user in the database.
+    User.findByIdAndUpdate(
+        req.user._id,
+        {
+            //updates the given fields
+            $set: {
+                refreshToken: undefined
+            }
+        },
+        {
+            //gives the new updated values
+            new: true
+        }
+    )
+
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+
+    return res
+        .status(200)
+        .clearCookie("accessToken", options)
+        .clearCookie("refreshToken", options)
+        .json(
+            new ApiResponse(
+                200,
+                {},
+                "User logged out successfully"
+            )
+        )
+})
+
+const refreshAccessToken = asyncHandler( async(req, res) => {
+    //handling for web browser and mobile apps
+    const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken
+
+    if(incomingRefreshToken){
+        throw new ApiError(401, "Unauthorized request")
+    }
+
+    try {
+        const decodedToken = jwt.verify(
+            incomingRefreshToken, 
+            process.env.REFRESH_TOKEN_SECRET
+        )
+    
+        //this decoded token gives access to the user id (check in user.models.js)
+        const user = await User.findById(decodedToken?._id)
+    
+        if(!user){
+            throw new ApiError(401, "Invalid refresh token")
+        }
+    
+        if(incomingRefreshToken !== user?.refreshToken){
+            throw new ApiError(401, "Refresh token is expired")
+        }
+    
+        const options = {
+            httpOnly: true,
+            secure: true
+        }
+    
+        const{accessToken, newRefreshToken} = await generateAccessAndRefreshTokens(user._id)
+    
+        return res
+            .status(200)
+            .cookie("accessToken", accessToken, options)
+            .cookie("refreshToken", newRefreshToken, options)
+            .json(
+                new ApiResponse(
+                    200,
+                    {accessToken, refreshToken: newRefreshToken},
+                    "Access token refreshed successfully"
+                )
+            )
+    } catch (error) {
+        throw new ApiError(401, error?.message || "Invalid refresh token")
+    }
+})
+
+export {
+    loginUser,
+    registerUser,
+    logoutUser,
+    refreshAccessToken
+}
 
 /**
 How asyncHandler works in registeredUser
