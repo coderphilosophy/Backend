@@ -39,13 +39,13 @@ const registerUser = asyncHandler( async (req, res) => {
 
     //form and json data can be found in req.body
     const {fullname, email, username, password} = req.body
-    //console.log("This is req body: ", req.body)
-    //console.log("email: ", email)
+    console.log("This is req body: ", req)
+    console.log("email: ", email)
 
     if(
         [fullname, email, username, password].some((field) => field?.trim() === "")
     ){
-        throw new ApiError(400, "All fields are required!m ")
+        throw new ApiError(400, "All fields are required!")
     }
 
     const existedUser = await User.findOne({ 
@@ -57,6 +57,7 @@ const registerUser = asyncHandler( async (req, res) => {
         throw new ApiError(409, "User with email or username already exists!")
     }
 
+    console.log(req.files)
     const avatarLocalPath = req.files?.avatar[0]?.path
     //const coverImageLocalPath = req.files?.coverImage[0]?.path
 
@@ -112,6 +113,7 @@ const loginUser = asyncHandler( async (req, res) => {
     //send cookie
 
     const {email, username, password} = req.body
+    console.log(email, username, password)
 
     if(!username && !email){
         throw new ApiError(400, "username or email is required!")
